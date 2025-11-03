@@ -1,8 +1,10 @@
 package com.rakuten.mobile.server.service;
 
 import com.rakuten.mobile.server.domain.Survey;
+import com.rakuten.mobile.server.events.SurveyPublishedEvent;
 import com.rakuten.mobile.server.repo.SurveyRepository;
 import com.rakuten.mobile.server.tenancy.TenantContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,8 +21,12 @@ import java.util.UUID;
 @Service
 public class SurveyService {
     private final SurveyRepository repo;
+    private final ApplicationEventPublisher events;
 
-    public SurveyService(SurveyRepository repo) { this.repo = repo; }
+    public SurveyService(SurveyRepository repo, ApplicationEventPublisher events) {
+        this.repo = repo;
+        this.events = events;
+    }
 
     /**
      * Creates a new survey for the current tenant.
@@ -63,7 +69,7 @@ public class SurveyService {
     public Optional<Survey> get(UUID id) { return repo.findById(id); }
 
     /**
-     * Marks a survey as "ACTIVE" to allow responses to be submitted.
+     * Marks a survey as "ACTIVE" to so it can accept responses and publish an async event.
      * The status of the survey is updated, and the change is persisted automatically through dirty checking.
      *
      * @param id The ID of the survey to publish.
@@ -73,7 +79,9 @@ public class SurveyService {
     @Transactional
     public Survey publish(UUID id) {
         Survey s = repo.findById(id).orElseThrow(() -> new IllegalArgumentException("Survey not found"));
-        s.setStatus("ACTIVE");   // dirty checking will persist on tx commit
+        s.setStatus("ACTIVE");   // dirty checking
+        // Emit event outside the entity mutation so listeners can react asynchronously.
+        events.publishEvent(new SurveyPublishedEvent(s.getTenantId(), s.getId(), s.getTitle()));
         return s;
     }
 
@@ -84,4 +92,6 @@ public class SurveyService {
      */
     @Transactional
     public void delete(UUID id) { repo.deleteById(id); }
+
+
 }
