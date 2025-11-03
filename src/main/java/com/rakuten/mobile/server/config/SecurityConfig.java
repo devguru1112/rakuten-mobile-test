@@ -39,28 +39,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         return http
-                // Most APIs need CORS; customize origins/headers for your environment
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // We rely on JWT, so disable CSRF and sessions
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Authorization rules:
-                // - Allow actuator & swagger (dev).
-                // - Allow GET "/" health/info (optional).
-                // - Everything else requires authentication.
                 .authorizeHttpRequests(reg -> reg
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/").permitAll()
                         .anyRequest().authenticated()
                 )
-
-                // Install our JWT filter before the default credentials filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-
-                // HTTP Basic can be left enabled/disabled; we don't use it but harmless in dev
                 .httpBasic(Customizer.withDefaults())
-
                 .build();
     }
 

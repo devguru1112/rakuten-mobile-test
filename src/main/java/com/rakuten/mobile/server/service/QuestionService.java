@@ -19,11 +19,10 @@ import java.util.*;
 @Service
 public class QuestionService {
 
-    private final QuestionRepository qRepo; // Repository for managing Question entities
-    private final OptionChoiceRepository oRepo; // Repository for managing OptionChoice entities
-    private final SurveyRepository sRepo; // Repository for managing Survey entities
+    private final QuestionRepository qRepo;
+    private final OptionChoiceRepository oRepo;
+    private final SurveyRepository sRepo;
 
-    // Constructor to inject dependencies
     public QuestionService(QuestionRepository qRepo, OptionChoiceRepository oRepo, SurveyRepository sRepo) {
         this.qRepo = qRepo;
         this.oRepo = oRepo;
@@ -43,31 +42,26 @@ public class QuestionService {
      */
     @Transactional
     public List<Question> replaceAll(UUID surveyId, List<Question> newQs, Map<Integer, List<OptionChoice>> optionsByIndex) {
-        // Ensure the survey exists within the current tenant
+
         sRepo.findById(surveyId).orElseThrow(() -> new IllegalArgumentException("Survey not found"));
 
-        // Delete all existing questions and options for the survey to ensure a clean slate
         qRepo.findBySurveyIdOrderByPositionAsc(surveyId).forEach(q -> {
-            // Delete all options for each question
             oRepo.findByQuestionIdOrderByPositionAsc(q.getId()).forEach(o -> oRepo.deleteById(o.getId()));
-            // Delete the question
             qRepo.deleteById(q.getId());
         });
 
-        // Get the current tenant ID from TenantContext
         UUID tenant = UUID.fromString(TenantContext.required());
 
         List<Question> saved = new ArrayList<>();
         // Iterate over the new questions to save them
         for (int i = 0; i < newQs.size(); i++) {
             Question q = newQs.get(i);
-            q.setId(UUID.randomUUID()); // Generate a new ID for the question
-            q.setTenantId(tenant); // Set the tenant ID
-            q.setSurveyId(surveyId); // Set the associated survey ID
-            if (q.getPosition() == 0) q.setPosition(i + 1); // Set position if not provided
-            if (q.getType() == null) q.setType(QuestionType.TEXT); // Default to TEXT type if not set
+            q.setId(UUID.randomUUID());
+            q.setTenantId(tenant);
+            q.setSurveyId(surveyId);
+            if (q.getPosition() == 0) q.setPosition(i + 1);
+            if (q.getType() == null) q.setType(QuestionType.TEXT);
 
-            // Save the question entity
             qRepo.save(q);
             saved.add(q);
 
@@ -75,13 +69,13 @@ public class QuestionService {
             List<OptionChoice> opts = optionsByIndex.getOrDefault(i, List.of());
             int pos = 0;
             for (OptionChoice o : opts) {
-                o.setId(UUID.randomUUID()); // Generate a new ID for the option
-                o.setTenantId(tenant); // Set the tenant ID for the option
-                o.setQuestionId(q.getId()); // Link the option to the question
-                if (o.getPosition() == 0) o.setPosition(++pos); // Set the position if not provided
-                oRepo.save(o); // Save the option entity
+                o.setId(UUID.randomUUID());
+                o.setTenantId(tenant);
+                o.setQuestionId(q.getId());
+                if (o.getPosition() == 0) o.setPosition(++pos);
+                oRepo.save(o);
             }
         }
-        return saved; // Return the list of saved questions
+        return saved;
     }
 }

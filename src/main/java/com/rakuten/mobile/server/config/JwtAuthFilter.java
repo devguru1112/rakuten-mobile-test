@@ -62,18 +62,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
 
-        // Retrieve the "Authorization" header from the request
         String auth = req.getHeader("Authorization");
 
-        // If there is an Authorization header and it starts with "Bearer "
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7); // Extract the token from the Authorization header
-            // Verify the token with the specified algorithm and issuer
             DecodedJWT jwt = JWT.require(alg).withIssuer(issuer).build().verify(token);
 
-            // Retrieve tenant from JWT claims
             String tenant = jwt.getClaim("tenant").asString();
-            // Retrieve tenant from the request header
             String headerTenant = req.getHeader("X-Tenant-Id");
 
             // If the tenant in the JWT does not match the tenant in the request header, return an error
@@ -84,22 +79,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
             // Extract roles from the JWT claims, or use an empty list if roles are not present
             var roles = Optional.ofNullable(jwt.getClaim("roles").asList(String.class)).orElse(List.of());
-            // Convert roles to authorities (prefix with "ROLE_")
             var authorities = roles.stream().map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
 
-            // Set the authentication in the Spring Security context
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(jwt.getSubject(), null, authorities));
 
-            // Set the tenant context to be used by the application (e.g., for multi-tenancy support)
             TenantContext.set(tenant);
         }
 
         try {
-            // Continue with the filter chain to process the request
             chain.doFilter(req, res);
         } finally {
-            // Clear the tenant context after the request is processed
             TenantContext.clear();
         }
     }
