@@ -61,7 +61,10 @@ public class ResponseController {
      * @return A Map with the ID of the newly created response.
      */
     @PostMapping
-    public Map<String, Object> submit(@PathVariable UUID surveyId, @RequestBody SubmitResponseReq req) {
+    public Map<String, Object> submit(
+            @PathVariable UUID surveyId,
+            @RequestBody SubmitResponseReq req,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idemKey) {
         List<Answer> answers = new ArrayList<>();
         for (var a : req.answers()) {
             Answer an = new Answer();
@@ -69,7 +72,7 @@ public class ResponseController {
             an.setValueJson(a.value());
             answers.add(an);
         }
-        UUID id = responses.submit(surveyId, req.respondentId(), answers);
+        UUID id = responses.submit(surveyId, req.respondentId(), answers, idemKey);
         return Map.of("responseId", id);
     }
 

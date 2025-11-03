@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.rakuten.mobile.server.domain.IdempotencyKey;
+import com.rakuten.mobile.server.repo.IdempotencyKeyRepository;
 
 import java.util.*;
 
@@ -22,14 +24,16 @@ public class ResponseService {
     private final OptionChoiceRepository oRepo;
     private final ResponseRepository rRepo;
     private final AnswerRepository aRepo;
+    private final IdempotencyKeyRepository idemRepo;
 
     public ResponseService(SurveyRepository sRepo, QuestionRepository qRepo, OptionChoiceRepository oRepo,
-                           ResponseRepository rRepo, AnswerRepository aRepo) {
+                           ResponseRepository rRepo, AnswerRepository aRepo, IdempotencyKeyRepository idemRepo) {
         this.sRepo = sRepo;
         this.qRepo = qRepo;
         this.oRepo = oRepo;
         this.rRepo = rRepo;
         this.aRepo = aRepo;
+        this.idemRepo = idemRepo;
     }
 
     /**
@@ -58,11 +62,20 @@ public class ResponseService {
      * @throws IllegalStateException If the survey is not active.
      */
     @Transactional
-    public UUID submit(UUID surveyId, UUID respondentId, List<Answer> answers) {
+    public UUID submit(UUID surveyId, UUID respondentId, List<Answer> answers, String idempotencyKey) {
         // Ensure the survey exists and is active
         Survey s = sRepo.findById(surveyId).orElseThrow(() -> new IllegalArgumentException("Survey not found"));
         if (!"ACTIVE".equalsIgnoreCase(s.getStatus())) {
             throw new IllegalStateException("Survey not ACTIVE");
+        }
+
+        // Persist the response and the answers
+        UUID tenant = UUID.fromString(TenantContext.required());
+
+        // If the key exists, return previously created responseId
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var hit = idemRepo.findByTenantIdAndKey(tenant, idempotencyKey);
+            if (hit.isPresent()) return hit.get().getResponseId();
         }
 
         // Load the survey schema (questions)
@@ -93,8 +106,6 @@ public class ResponseService {
             }
         }
 
-        // Persist the response and the answers
-        UUID tenant = UUID.fromString(TenantContext.required());
         Response r = new Response();
         r.setTenantId(tenant);
         r.setSurveyId(surveyId);
@@ -107,6 +118,16 @@ public class ResponseService {
             a.setResponseId(r.getId());
             aRepo.save(a);
         }
+
+        // Save idempotency mapping
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var idem = new IdempotencyKey();
+            idem.setTenantId(tenant);
+            idem.setKey(idempotencyKey);
+            idem.setResponseId(r.getId());
+            idemRepo.save(idem);
+        }
+
         return r.getId();
     }
 }
