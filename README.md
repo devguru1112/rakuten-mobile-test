@@ -102,4 +102,23 @@ Then open:
 ```bash
 http://localhost:8080/swagger-ui/index.html
 ```
+
+### Sample JWT for quick testing
+
+Header:
+{
+"alg": "HS256",
+"typ": "JWT"
+}
+
+Payload (example):
+{
+"sub": "reviewer@example.com",
+"tenant": "11111111-1111-1111-1111-111111111111",
+"roles": ["TENANT_ADMIN"],
+"iss": "survey-app",
+"exp": <one-hour-from-now>
+}
+
+Secret: the value of `app.jwt.secret` in `application.properties`.
 ---
