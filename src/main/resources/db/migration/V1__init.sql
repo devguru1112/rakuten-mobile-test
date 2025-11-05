@@ -22,9 +22,12 @@ CREATE TABLE surveys (
                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                          tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
                          title TEXT NOT NULL,
+                         description TEXT,
                          status TEXT NOT NULL DEFAULT 'DRAFT', -- DRAFT | ACTIVE
                          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                         startsAt TIMESTAMPTZ,
+                         endsAt TIMESTAMPTZ,
 );
 CREATE INDEX idx_surveys_tenant ON surveys(tenant_id);
 CREATE INDEX idx_surveys_status ON surveys(status);
