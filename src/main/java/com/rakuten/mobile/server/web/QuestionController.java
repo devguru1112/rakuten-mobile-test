@@ -3,68 +3,104 @@ package com.rakuten.mobile.server.web;
 import com.rakuten.mobile.server.domain.OptionChoice;
 import com.rakuten.mobile.server.domain.Question;
 import com.rakuten.mobile.server.service.QuestionService;
-import com.rakuten.mobile.server.web.dto.QuestionDTO;
+import com.rakuten.mobile.server.web.dto.question.CreateQuestionReq;
+import com.rakuten.mobile.server.web.dto.question.QuestionRes;
+import com.rakuten.mobile.server.web.dto.question.ReplaceQuestionsReq;
+import com.rakuten.mobile.server.web.dto.question.UpdateQuestionReq;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
 /**
- * Controller to handle operations related to questions in a survey.
- * Provides an endpoint to replace all questions for a survey in one request.
- * The current implementation does not support partial updates.
+ * Controller for managing questions in a survey.
+ * Provides endpoints to:
+ *  - add a question,
+ *  - list all questions,
+ *  - get a specific question,
+ *  - update an existing question,
+ *  - and delete a question.
  */
+
 @RestController
 @RequestMapping("/api/surveys/{surveyId}/questions")
 public class QuestionController {
 
     private final QuestionService questions;
 
-    public QuestionController(QuestionService questions) { this.questions = questions; }
+    public QuestionController(QuestionService questions) {
+        this.questions = questions;
+    }
 
     /**
-     * Endpoint to replace all questions for a given survey in one request.
-     * This will delete existing questions and insert the new ones provided in the request body.
+     * Endpoint to list all questions for a specific survey, ordered by their position.
      *
-     * @param surveyId The ID of the survey to replace questions for.
-     * @param body The list of QuestionDTO objects representing the new set of questions.
-     * @return The list of newly created questions (without options, for simplicity).
+     * @param surveyId The ID of the survey whose questions are to be listed.
+     * @return A list of questions for the given survey, wrapped in QuestionRes DTOs.
+     */
+    @GetMapping
+    public List<QuestionRes> list(@PathVariable UUID surveyId) {
+        List<Question> qs = questions.list(surveyId);
+        return qs.stream()
+                .map(q -> QuestionRes.from(q, questions.options(q.getId())))
+                .toList();
+    }
+
+    /**
+     * Endpoint to create a new question for a given survey.
+     *
+     * @param surveyId The ID of the survey to which the question belongs.
+     * @param req The request body containing question details such as text, type, and options.
+     * @return The created question as a QuestionRes DTO.
      */
     @PostMapping
-    public List<QuestionDTO> replace(@PathVariable UUID surveyId, @RequestBody List<QuestionDTO> body) {
-        // Map incoming DTOs to entities; index-based map used to attach options to their new Question
-        List<Question> newQs = new ArrayList<>();
-        Map<Integer, List<OptionChoice>> optionsByIndex = new HashMap<>();
+    public QuestionRes add(@PathVariable UUID surveyId, @Valid @RequestBody CreateQuestionReq req) {
+        Question q = questions.create(surveyId, req);
+        List<OptionChoice> opts = questions.options(q.getId());
+        return QuestionRes.from(q, opts);
+    }
 
-        // Iterate through the provided QuestionDTOs and map them to Question entities
-        for (int i = 0; i < body.size(); i++) {
-            var dto = body.get(i);
+    /**
+     * Endpoint to update (replace) a specific question and its options.
+     *
+     * @param surveyId The ID of the survey containing the question.
+     * @param questionId The ID of the question to update.
+     * @param req The request body with the updated question details and options.
+     * @return The updated question as a QuestionRes DTO.
+     */
+    @PutMapping("/{questionId}")
+    public QuestionRes update(@PathVariable UUID surveyId,
+                              @PathVariable UUID questionId,
+                              @Valid @RequestBody UpdateQuestionReq req) {
+        Question q = questions.update(questionId, req);
+        return QuestionRes.from(q, questions.options(q.getId()));
+    }
 
-            Question q = new Question();
-            q.setText(dto.text());
-            q.setType(dto.type());
-            q.setRequired(dto.required());
-            q.setPosition(dto.position()); // if 0, service assigns i+1
-            newQs.add(q);
+    /**
+     * Endpoint to delete a specific question from a survey.
+     *
+     * @param surveyId The ID of the survey containing the question.
+     * @param questionId The ID of the question to delete.
+     */
+    @DeleteMapping("/{questionId}")
+    public void delete(@PathVariable UUID surveyId, @PathVariable UUID questionId) {
+        questions.delete(surveyId, questionId);
+    }
 
-            if (dto.options() != null) {
-                List<OptionChoice> opts = new ArrayList<>();
-                int pos = 0;
-                for (var o : dto.options()) {
-                    OptionChoice oc = new OptionChoice();
-                    oc.setText(o.text());
-                    oc.setPosition(o.position() == 0 ? ++pos : o.position());
-                    opts.add(oc);
-                }
-                optionsByIndex.put(i, opts);
-            }
-        }
+    /** REPLACE ALL: PUT /api/surveys/{surveyId}/questions  (bulk) */
+    @PutMapping
+    public List<QuestionRes> replaceAll(@PathVariable UUID surveyId,
+                                        @Valid @RequestBody ReplaceQuestionsReq req) {
+        List<Question> qs = questions.replaceAll(surveyId, req);
+        return qs.stream()
+                .map(q -> QuestionRes.from(q, questions.options(q.getId())))
+                .toList();
+    }
 
-        var saved = questions.replaceAll(surveyId, newQs, optionsByIndex);
-        // Map back to DTOs (omit options to keep response small)
-        List<QuestionDTO> out = new ArrayList<>();
-        for (Question q : saved) {
-            out.add(new QuestionDTO(q.getId(), q.getType(), q.getText(), q.isRequired(), q.getPosition(), List.of()));
-        }
-        return out;
+    /** DELETE ALL: DELETE /api/surveys/{surveyId}/questions */
+    @DeleteMapping
+    public void deleteAll(@PathVariable UUID surveyId) {
+        questions.replaceAll(surveyId, new ReplaceQuestionsReq(List.of())); // replace with empty list
     }
 }

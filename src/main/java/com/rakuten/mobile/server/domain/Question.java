@@ -1,5 +1,6 @@
 package com.rakuten.mobile.server.domain;
 
+import com.rakuten.mobile.server.tenancy.TenantContext;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -40,4 +41,11 @@ public class Question {
 
     @Column(nullable = false)
     private int position; // Position of the question in the survey
+
+    @PrePersist
+    private void fillTenantIfMissing() {
+        if (tenantId == null) {
+            tenantId = UUID.fromString(TenantContext.required());
+        }
+    }
 }

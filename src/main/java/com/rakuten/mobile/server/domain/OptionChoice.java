@@ -1,5 +1,6 @@
 package com.rakuten.mobile.server.domain;
 
+import com.rakuten.mobile.server.tenancy.TenantContext;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,7 +16,7 @@ import java.util.UUID;
  */
 @Getter @Setter
 @Entity
-@Table(name = "options")
+@Table(name = "option_choices")
 @FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "tenantId", type = String.class))
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
 public class OptionChoice {
@@ -29,8 +30,20 @@ public class OptionChoice {
     private UUID questionId; // The question this option belongs to
 
     @Column(nullable = false)
-    private String text; // Text for the option
+    private String label;     // ✅ This matches o.getLabel()
+
+    @Column(name = "option_value")
+    private String value;     // ✅ This matches o.getValue()
 
     @Column(nullable = false)
     private int position; // Position of the option in the list
+
+    @PrePersist
+    private void fillTenantIfMissing() {
+        if (tenantId == null) {
+            // TenantContext.required() should throw if not present; if you prefer,
+            // add a TenantContext.optional() and default for dev.
+            tenantId = UUID.fromString(TenantContext.required());
+        }
+    }
 }

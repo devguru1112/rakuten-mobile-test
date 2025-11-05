@@ -60,6 +60,17 @@ CREATE TABLE options (
 );
 CREATE INDEX idx_options_tenant_question ON options(tenant_id, question_id);
 
+-- -------------------------------
+-- Option Choice
+-- -------------------------------
+CREATE TABLE option_choices (
+                                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                                question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                                label TEXT NOT NULL,
+                                value TEXT,
+                                position INT NOT NULL
+);
 -- ------------------------
 -- Responses (one per respondent per survey)
 -- ------------------------

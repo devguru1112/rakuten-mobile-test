@@ -13,4 +13,6 @@ import java.util.UUID;
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
     // Finds all questions for a specific survey, ordered by position
     List<Question> findBySurveyIdOrderByPositionAsc(UUID surveyId);
+    long countBySurveyId(UUID surveyId);
+    void deleteBySurveyId(UUID surveyId);
 }

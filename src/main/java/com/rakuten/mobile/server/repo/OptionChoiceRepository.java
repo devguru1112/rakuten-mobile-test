@@ -13,4 +13,5 @@ import java.util.UUID;
 public interface OptionChoiceRepository extends JpaRepository<OptionChoice, UUID> {
     // Finds all options for a specific question, ordered by position
     List<OptionChoice> findByQuestionIdOrderByPositionAsc(UUID questionId);
+    void deleteByQuestionId(UUID questionId);
 }
