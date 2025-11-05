@@ -4,6 +4,8 @@ import com.rakuten.mobile.server.domain.Survey;
 import com.rakuten.mobile.server.events.SurveyPublishedEvent;
 import com.rakuten.mobile.server.repo.SurveyRepository;
 import com.rakuten.mobile.server.tenancy.TenantContext;
+import com.rakuten.mobile.server.web.dto.CreateSurveyReq;
+import com.rakuten.mobile.server.web.dto.SurveyUpdateRequest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,17 +34,19 @@ public class SurveyService {
      * Creates a new survey for the current tenant.
      * The survey is initially set to a "DRAFT" status and a creation timestamp is set.
      *
-     * @param title The title of the survey.
+     * @param req The CreateSurveyReq of the survey.
      * @return The created survey entity.
      */
     @Transactional
-    public Survey create(String title) {
+    public Survey create(CreateSurveyReq req) {
         Survey s = new Survey();
         s.setId(UUID.randomUUID());
         s.setTenantId(UUID.fromString(TenantContext.required()));
-        s.setTitle(title);
-        s.setStatus("DRAFT");
+        if (req.title() != null && !req.title().isBlank()) s.setTitle(req.title());
+        if (req.description() != null) s.setDescription(req.description());
+        if (req.status() != null) s.setStatus(req.status()); else s.setStatus("DRAFT");
         s.setCreatedAt(Instant.now());
+        s.setUpdatededAt(Instant.now());
         return repo.save(s);
     }
 
@@ -83,6 +87,25 @@ public class SurveyService {
         // Emit event outside the entity mutation so listeners can react asynchronously.
         events.publishEvent(new SurveyPublishedEvent(s.getTenantId(), s.getId(), s.getTitle()));
         return s;
+    }
+
+
+    @Transactional
+    public Survey update(UUID surveyId, SurveyUpdateRequest req) {
+        var s = repo.findById(surveyId)
+                .orElseThrow(() -> new IllegalArgumentException("Survey not found"));
+
+        if (req.title() != null && !req.title().isBlank()) s.setTitle(req.title());
+        if (req.description() != null) s.setDescription(req.description());
+        if (req.status() != null) s.setStatus(req.status());
+        if (req.startsAt() != null) s.setStartsAt(req.startsAt());
+        if (req.endsAt() != null) s.setEndsAt(req.endsAt());
+
+        if (s.getStartsAt() != null && s.getEndsAt() != null && s.getEndsAt().isBefore(s.getStartsAt())) {
+            throw new IllegalArgumentException("endsAt must be after startsAt");
+        }
+
+        return repo.save(s);
     }
 
     /**

@@ -29,9 +29,21 @@ public class Survey {
     @Column(nullable = false)
     private String title; // Title of the survey
 
+    @Column(length = 2000)
+    private String description;
+
     @Column(nullable = false)
     private String status = "DRAFT"; // Status of the survey (e.g., DRAFT, ACTIVE, ARCHIVED)
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now(); // Timestamp when the survey was created
+
+    @Column(name = "updated_at")
+    private Instant updatededAt;
+
+    @Column(name = "startsAt")
+    private Instant startsAt; // Timestamp when the survey was created
+
+    @Column(name = "endsAt")
+    private Instant endsAt;
 }

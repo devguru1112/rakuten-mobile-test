@@ -4,6 +4,7 @@ import com.rakuten.mobile.server.domain.Survey;
 import com.rakuten.mobile.server.service.SurveyService;
 import com.rakuten.mobile.server.web.dto.CreateSurveyReq;
 import com.rakuten.mobile.server.web.dto.SurveyRes;
+import com.rakuten.mobile.server.web.dto.SurveyUpdateRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,7 +37,7 @@ public class SurveyController {
      */
     @PostMapping
     public SurveyRes create(@Valid @RequestBody CreateSurveyReq req) {
-        return SurveyRes.from(surveys.create(req.title()));
+        return SurveyRes.from(surveys.create(req));
     }
 
     /**
@@ -76,6 +77,21 @@ public class SurveyController {
     }
 
     /**
+     * Endpoint to update a survey.
+     *
+     * @param id The ID of the survey to update.
+     * @param req The request body containing the survey title.
+     * @return The created survey as a SurveyRes DTO.
+     */
+    @PutMapping("/{id}")
+    public SurveyRes update(
+            @PathVariable UUID id,
+            @Valid @RequestBody SurveyUpdateRequest req
+    ) {
+        return SurveyRes.from(surveys.update(id, req));
+    }
+
+    /**
      * Endpoint to delete a survey by its ID.
      *
      * @param id The ID of the survey to delete.
@@ -84,4 +100,5 @@ public class SurveyController {
     public void delete(@PathVariable UUID id) {
         surveys.delete(id);
     }
+
 }
