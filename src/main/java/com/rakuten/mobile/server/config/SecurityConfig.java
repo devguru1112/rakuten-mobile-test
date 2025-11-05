@@ -4,6 +4,7 @@ import com.rakuten.mobile.server.tenancy.TenantHibernateFilterEnabler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,6 +31,7 @@ import java.util.List;
  * - Our JwtAuthFilter runs BEFORE UsernamePasswordAuthenticationFilter.
  * - Protects all /api/** endpoints; leaves actuator and Swagger open for dev.
  */
+@Profile("!dev")
 @Configuration
 @EnableWebSecurity
 // @EnableMethodSecurity // enable if you add @PreAuthorize on service/controller methods
