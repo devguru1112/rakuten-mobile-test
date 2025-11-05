@@ -17,7 +17,7 @@ import java.util.UUID;
 @Getter @Setter
 @Entity
 @Table(name = "answers")
-@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "tenantId", type = String.class))
+//@FilterDef(name = "tenantFilter", parameters = @ParamDef(name = "tenantId", type = String.class))
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
 
 public class Answer {

@@ -1,12 +1,15 @@
 package com.rakuten.mobile.server.tenancy;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
+import lombok.RequiredArgsConstructor;
+import org.hibernate.Filter;
 import org.hibernate.Session;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
 
 /**
  * TenantHibernateFilterEnabler class is a filter that integrates with Hibernate's multi-tenancy
@@ -19,37 +22,29 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 
 @Component
+@RequiredArgsConstructor
 public class TenantHibernateFilterEnabler extends OncePerRequestFilter {
 
-    @PersistenceContext
-    private EntityManager em; // EntityManager to interact with the persistence context
+    private final EntityManager entityManager; // EntityManager to interact with the persistence context
 
-    /**
-     * This method enables the tenant filter for each Hibernate session, applying the tenant ID
-     * from the TenantContext to the session.
-     *
-     * @param req The HTTP request object.
-     * @param res The HTTP response object.
-     * @param chain The filter chain to continue processing the request.
-     * @throws ServletException If an error occurs during filter processing.
-     * @throws java.io.IOException If an I/O error occurs during filter processing.
-     */
     @Override
-    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
-            throws ServletException, java.io.IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
 
-        // Unwrap the Hibernate session from the EntityManager
-        Session session = em.unwrap(Session.class);
-
-        // Enable the tenant filter and set the tenant ID from TenantContext
-        session.enableFilter("tenantFilter").setParameter("tenantId", TenantContext.required());
+        String tenantId = TenantContext.get(); // null if unauthenticated/public
+        Session session = entityManager.unwrap(Session.class);
+        Filter filter = null;
 
         try {
-            // Continue with the filter chain to process the request
-            chain.doFilter(req, res);
+            if (tenantId != null) {
+                filter = session.enableFilter("tenantFilter");
+                filter.setParameter("tenantId", tenantId);
+            }
+            chain.doFilter(request, response);
         } finally {
-            // Disable the tenant filter after the request is processed
-            session.disableFilter("tenantFilter");
+            if (filter != null) {
+                session.disableFilter("tenantFilter");
+            }
         }
     }
 }

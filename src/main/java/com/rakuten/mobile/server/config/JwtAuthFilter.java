@@ -32,6 +32,7 @@ import java.util.*;
  * - Clears the tenant context after processing the request.
  */
 
+@Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final Algorithm alg;  // Algorithm used for verifying the JWT signature
@@ -45,6 +46,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      */
     public JwtAuthFilter(@Value("${app.security.jwt.secret}") String secret,
                          @Value("${app.security.jwt.issuer}") String issuer) {
+
+        if (secret == null || secret.isBlank()) {
+            // Fail fast with a clear message; avoids a vague bean-creation failure
+            throw new IllegalStateException("Missing JWT secret. Set 'app.jwt.secret' in application.properties or as an environment variable.");
+        }
         this.alg = Algorithm.HMAC256(secret); // Initialize the HMAC algorithm with the secret
         this.issuer = issuer; // Set the expected issuer
     }
@@ -64,31 +70,34 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String auth = req.getHeader("Authorization");
 
-        if (auth != null && auth.startsWith("Bearer ")) {
-            String token = auth.substring(7); // Extract the token from the Authorization header
-            DecodedJWT jwt = JWT.require(alg).withIssuer(issuer).build().verify(token);
-
-            String tenant = jwt.getClaim("tenant").asString();
-            String headerTenant = req.getHeader("X-Tenant-Id");
-
-            // If the tenant in the JWT does not match the tenant in the request header, return an error
-            if (!Objects.equals(tenant, headerTenant)) {
-                res.sendError(HttpServletResponse.SC_FORBIDDEN, "Tenant mismatch");
-                return;
-            }
-
-            // Extract roles from the JWT claims, or use an empty list if roles are not present
-            var roles = Optional.ofNullable(jwt.getClaim("roles").asList(String.class)).orElse(List.of());
-            var authorities = roles.stream().map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
-
-            SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken(jwt.getSubject(), null, authorities));
-
-            TenantContext.set(tenant);
-        }
-
         try {
+            if (auth != null && auth.startsWith("Bearer ")) {
+                String token = auth.substring(7); // Extract the token from the Authorization header
+                DecodedJWT jwt = JWT.require(alg).withIssuer(issuer).build().verify(token);
+
+                String tenant = jwt.getClaim("tenant").asString();
+                String headerTenant = req.getHeader("X-Tenant-Id");
+
+                // If the tenant in the JWT does not match the tenant in the request header, return an error
+                if (!Objects.equals(tenant, headerTenant)) {
+                    res.sendError(HttpServletResponse.SC_FORBIDDEN, "Tenant mismatch");
+                    return;
+                }
+
+                // Extract roles from the JWT claims, or use an empty list if roles are not present
+                var roles = Optional.ofNullable(jwt.getClaim("roles").asList(String.class)).orElse(List.of());
+                var authorities = roles.stream().map(r -> new SimpleGrantedAuthority("ROLE_" + r)).toList();
+
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(jwt.getSubject(), null, authorities));
+
+                TenantContext.set(tenant);
+            }
             chain.doFilter(req, res);
+        } catch (Exception e) {
+            SecurityContextHolder.clearContext();
+            TenantContext.clear();
+            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired token");
         } finally {
             TenantContext.clear();
         }

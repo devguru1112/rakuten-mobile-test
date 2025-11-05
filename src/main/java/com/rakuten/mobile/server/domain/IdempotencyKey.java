@@ -1,32 +1,40 @@
 package com.rakuten.mobile.server.domain;
 
 import jakarta.persistence.*;
-import lombok.Getter; import lombok.Setter;
-import java.time.Instant;
+import lombok.*;
+
+import java.io.Serializable;
 import java.util.UUID;
 
-@Getter @Setter
 @Entity
-@Table(name = "idempotency_keys")
-@IdClass(IdempotencyKey.PK.class)
+@Table(name = "idempotency_keys", schema = "public")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class IdempotencyKey {
 
-    @Id @Column(name = "tenant_id", columnDefinition = "uuid")
-    private UUID tenantId;
-
-    @Id @Column(name = "key", nullable = false)
-    private String key;
+    @EmbeddedId
+    private PK id;
 
     @Column(name = "response_id", nullable = false, columnDefinition = "uuid")
     private UUID responseId;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt = Instant.now();
+    @Column(name = "created_at_epoch", nullable = false)
+    private Long createdAtEpoch;
 
-    /** Composite PK holder */
-    public static class PK implements java.io.Serializable {
-        public UUID tenantId; public String key;
-        public PK() {}
-        public PK(UUID tenantId, String key) { this.tenantId = tenantId; this.key = key; }
+    @Embeddable
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode
+    public static class PK implements Serializable {
+
+        @Column(name = "tenant_id", nullable = false, columnDefinition = "uuid")
+        private UUID tenantId;
+
+        @Column(name = "key", nullable = false, length = 128)
+        private String key;
     }
 }

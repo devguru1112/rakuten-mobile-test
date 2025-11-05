@@ -69,13 +69,16 @@ public class ResponseService {
             throw new IllegalStateException("Survey not ACTIVE");
         }
 
-        // Persist the response and the answers
+        // Tenant from security context
         UUID tenant = UUID.fromString(TenantContext.required());
 
-        // If the key exists, return previously created responseId
+        // Idempotency: if key exists for this tenant, return the saved responseId
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            var hit = idemRepo.findByTenantIdAndKey(tenant, idempotencyKey);
-            if (hit.isPresent()) return hit.get().getResponseId();
+            IdempotencyKey.PK pk = new IdempotencyKey.PK(tenant, idempotencyKey);
+            Optional<IdempotencyKey> hit = idemRepo.findById(pk);
+            if (hit.isPresent()) {
+                return hit.get().getResponseId();
+            }
         }
 
         // Load the survey schema (questions)
@@ -99,32 +102,33 @@ public class ResponseService {
             answered.add(q.getId());
         }
 
-        // Check if all required questions have been answered
         for (Question q : qs) {
             if (q.isRequired() && !answered.contains(q.getId())) {
                 throw new IllegalArgumentException("Missing required answer for question: " + q.getId());
             }
         }
 
+        // Save response
         Response r = new Response();
         r.setTenantId(tenant);
         r.setSurveyId(surveyId);
         r.setRespondentId(respondentId);
         rRepo.save(r);
 
-        // Save each answer, associating it with the response
+        // Save each answer
         for (Answer a : answers) {
             a.setTenantId(tenant);
             a.setResponseId(r.getId());
+            // (optional) validate against options.get(qId) if choice question
             aRepo.save(a);
         }
 
-        // Save idempotency mapping
+        // Save idempotency mapping -> (tenantId, key) => responseId
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            var idem = new IdempotencyKey();
-            idem.setTenantId(tenant);
-            idem.setKey(idempotencyKey);
+            IdempotencyKey idem = new IdempotencyKey();
+            idem.setId(new IdempotencyKey.PK(tenant, idempotencyKey));
             idem.setResponseId(r.getId());
+            idem.setCreatedAtEpoch(System.currentTimeMillis());
             idemRepo.save(idem);
         }
 
