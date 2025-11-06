@@ -6,8 +6,11 @@ import lombok.Setter;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterDef;
 import org.hibernate.annotations.ParamDef;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,4 +37,8 @@ public class Response {
 
     @Column(name = "submitted_at", nullable = false)
     private Instant submittedAt = Instant.now(); // Timestamp of when the response was submitted
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "answers_json")
+    private Map<String, Object> answersJson;
 }

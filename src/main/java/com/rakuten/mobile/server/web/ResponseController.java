@@ -1,21 +1,20 @@
 package com.rakuten.mobile.server.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rakuten.mobile.server.domain.Answer;
 import com.rakuten.mobile.server.domain.Response;
-import com.rakuten.mobile.server.repo.AnswerRepository;
 import com.rakuten.mobile.server.repo.ResponseRepository;
 import com.rakuten.mobile.server.service.ResponseService;
+import com.rakuten.mobile.server.web.dto.ResponseRes;
 import com.rakuten.mobile.server.web.dto.SubmitResponseReq;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * REST controller to handle survey responses.
@@ -27,15 +26,12 @@ public class ResponseController {
 
     private final ResponseService responses;
     private final ResponseRepository rRepo;
-    private final AnswerRepository aRepo;
     private final ObjectMapper om = new ObjectMapper();
 
     public ResponseController(ResponseService responses,
-                              ResponseRepository rRepo,
-                              AnswerRepository aRepo) {
+                              ResponseRepository rRepo) {
         this.responses = responses;
         this.rRepo = rRepo;
-        this.aRepo = aRepo;
     }
     /**
      * Endpoint to list responses for a specific survey with pagination.
@@ -45,13 +41,8 @@ public class ResponseController {
      * @return A page of response data (minimal details such as response ID, submission timestamp, and respondent ID).
      */
     @GetMapping
-    public Page<Map<String, Object>> list(@PathVariable UUID surveyId, Pageable pageable) {
-        return responses.list(surveyId, pageable)
-                .map(r -> Map.of(
-                        "id", r.getId(),
-                        "submittedAt", r.getSubmittedAt(),
-                        "respondentId", r.getRespondentId()
-                ));
+    public Page<ResponseRes> list(@PathVariable UUID surveyId, Pageable pageable) {
+        return responses.list(surveyId, pageable).map(ResponseRes::from);
     }
 
     /**
@@ -65,16 +56,34 @@ public class ResponseController {
     public Map<String, Object> submit(
             @PathVariable UUID surveyId,
             @RequestBody SubmitResponseReq req,
-            @RequestHeader(name = "Idempotency-Key", required = false) String idemKey) {
-        List<Answer> answers = new ArrayList<>();
-        for (var a : req.answers()) {
-            Answer an = new Answer();
-            an.setQuestionId(a.questionId());
-            an.setValueJson(a.value());
-            answers.add(an);
+            @RequestHeader(name = "X-Tenant-Id", required = false) UUID tenantId,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idemKey
+            ) {
+
+        if (tenantId == null) {
+            tenantId = UUID.fromString("00000000-0000-0000-0000-000000000001");
         }
-        UUID id = responses.submit(surveyId, req.respondentId(), answers, idemKey);
+
+        Map<String, Object> answers = req.answers().stream()
+                .filter(a -> a.value() != null)
+                .collect(Collectors.toMap(a -> a.questionId().toString(), (SubmitResponseReq.Ans::value)));
+
+
+        UUID id = responses.submit(surveyId, tenantId, req.respondentId(), answers, idemKey);
         return Map.of("responseId", id);
+    }
+
+    /**
+     * Endpoint to retrieve a specific survey by its ID.
+     *
+     * @param id The ID of the survey to retrieve.
+     * @return The requested survey as a SurveyRes DTO.
+     * @throws IllegalArgumentException If the survey is not found.
+     */
+    @GetMapping("/{id}")
+    public ResponseRes get(@PathVariable UUID id) {
+        Response response = responses.get(id).orElseThrow(() -> new IllegalArgumentException("Survey not found"));
+        return ResponseRes.from(response);
     }
 
     /**
@@ -86,20 +95,17 @@ public class ResponseController {
     public void export(@PathVariable UUID surveyId,
                        @RequestParam(defaultValue = "csv") String format,
                        HttpServletResponse res) throws IOException {
-        List<Response> rs = rRepo.findBySurveyId(surveyId, Pageable.unpaged()).getContent();
+        List<Response> rs = rRepo.findAllBySurveyId(surveyId);
 
         if ("json".equalsIgnoreCase(format)) {
             res.setContentType(MediaType.APPLICATION_JSON_VALUE);
             var out = new ArrayList<Map<String, Object>>();
             for (var r : rs) {
-                var answers = aRepo.findByResponseId(r.getId()).stream()
-                        .map(a -> Map.of("questionId", a.getQuestionId(), "valueJson", a.getValueJson()))
-                        .toList();
                 out.add(Map.of(
                         "responseId", r.getId(),
                         "submittedAt", r.getSubmittedAt(),
                         "respondentId", r.getRespondentId(),
-                        "answers", answers));
+                        "answers", r.getAnswersJson()));
             }
             om.writeValue(res.getOutputStream(), out);
             return;
@@ -111,16 +117,17 @@ public class ResponseController {
         var writer = res.getWriter();
         writer.println("response_id,submitted_at,respondent_id,question_id,value_json");
         for (var r : rs) {
-            var answers = aRepo.findByResponseId(r.getId());
-            for (var a : answers) {
+            var answers = r.getAnswersJson();
+            for (Map.Entry<String, Object> entry : answers.entrySet()) {
                 // value_json may contain commas—quote as JSON string; CSV parsers can handle quoted fields
-                String value = om.writeValueAsString(a.getValueJson());
+                String value = om.writeValueAsString(entry.getValue());
                 writer.printf("%s,%s,%s,%s,%s%n",
-                        r.getId(), r.getSubmittedAt(), r.getRespondentId(), a.getQuestionId(), value);
+                        r.getId().toString(), r.getSubmittedAt().toString(), r.getRespondentId().toString(), entry.getKey(), value);
             }
         }
         writer.flush();
     }
+
 
 
 }

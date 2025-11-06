@@ -6,35 +6,26 @@ import lombok.*;
 import java.io.Serializable;
 import java.util.UUID;
 
+@Getter @Setter
 @Entity
-@Table(name = "idempotency_keys", schema = "public")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Table(
+        name = "idempotency_keys",
+        uniqueConstraints = @UniqueConstraint(name = "uq_idem_tenant_key", columnNames = {"tenant_id", "idem_key"})
+)
 public class IdempotencyKey {
+    @Id
+    @Column(columnDefinition = "uuid")
+    private UUID id = UUID.randomUUID();            // <-- single surrogate PK
 
-    @EmbeddedId
-    private PK id;
+    @Column(name = "tenant_id", nullable = false, columnDefinition = "uuid")
+    private UUID tenantId;
 
-    @Column(name = "response_id", nullable = false, columnDefinition = "uuid")
-    private UUID responseId;
+    @Column(name = "idem_key", nullable = false)    // <-- NOT "key"
+    private String idemKey;
 
     @Column(name = "created_at_epoch", nullable = false)
-    private Long createdAtEpoch;
+    private long createdAtEpoch;
 
-    @Embeddable
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @EqualsAndHashCode
-    public static class PK implements Serializable {
-
-        @Column(name = "tenant_id", nullable = false, columnDefinition = "uuid")
-        private UUID tenantId;
-
-        @Column(name = "key", nullable = false, length = 128)
-        private String key;
-    }
+    @Column(name = "response_id", columnDefinition = "uuid")
+    private UUID responseId;
 }

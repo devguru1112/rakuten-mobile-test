@@ -36,7 +36,7 @@ class IdempotencyWebMvcTest {
     @Test
     void reusingSameKeyReturnsSameResponseId() throws Exception {
         UUID respId = UUID.randomUUID();
-        Mockito.when(responseService.submit(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyList(), ArgumentMatchers.eq("abc123")))
+        Mockito.when(responseService.submit(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.anyMap(), ArgumentMatchers.eq("abc123")))
                 .thenReturn(respId);
 
         String payload = "{\"respondentId\":null,\"answers\":[]}";

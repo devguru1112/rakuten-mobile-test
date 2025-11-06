@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.rakuten.mobile.server.domain.IdempotencyKey;
 import com.rakuten.mobile.server.repo.IdempotencyKeyRepository;
 
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -19,20 +20,12 @@ import java.util.*;
 @Service
 public class ResponseService {
 
-    private final SurveyRepository sRepo;
-    private final QuestionRepository qRepo;
-    private final OptionChoiceRepository oRepo;
-    private final ResponseRepository rRepo;
-    private final AnswerRepository aRepo;
+    private final ResponseRepository responseRepo;
     private final IdempotencyKeyRepository idemRepo;
 
-    public ResponseService(SurveyRepository sRepo, QuestionRepository qRepo, OptionChoiceRepository oRepo,
-                           ResponseRepository rRepo, AnswerRepository aRepo, IdempotencyKeyRepository idemRepo) {
-        this.sRepo = sRepo;
-        this.qRepo = qRepo;
-        this.oRepo = oRepo;
-        this.rRepo = rRepo;
-        this.aRepo = aRepo;
+    public ResponseService(ResponseRepository responseRepo,
+                           IdempotencyKeyRepository idemRepo) {
+        this.responseRepo = responseRepo;
         this.idemRepo = idemRepo;
     }
 
@@ -44,7 +37,7 @@ public class ResponseService {
      * @return A page of responses for the specified survey.
      */
     public Page<Response> list(UUID surveyId, Pageable pageable) {
-        return rRepo.findBySurveyId(surveyId, pageable);
+        return responseRepo.findBySurveyId(surveyId, pageable);
     }
 
     /**
@@ -55,83 +48,61 @@ public class ResponseService {
      * - Saves the response and the answers to the database.
      *
      * @param surveyId The ID of the survey.
-     * @param respondentId The ID of the respondent submitting the answers.
-     * @param answers The list of answers provided by the respondent.
+     * @param tenantId The ID of the tenancy.
+     * @param answersJson The JSON of answers provided by the respondent.
+     * @param idempotencyKey The Key of tenancy
      * @return The ID of the saved response.
      * @throws IllegalArgumentException If the survey is not found or there are missing required answers.
      * @throws IllegalStateException If the survey is not active.
      */
     @Transactional
-    public UUID submit(UUID surveyId, UUID respondentId, List<Answer> answers, String idempotencyKey) {
-        // Ensure the survey exists and is active
-        Survey s = sRepo.findById(surveyId).orElseThrow(() -> new IllegalArgumentException("Survey not found"));
-        if (!"ACTIVE".equalsIgnoreCase(s.getStatus())) {
-            throw new IllegalStateException("Survey not ACTIVE");
-        }
+    public UUID submit(UUID surveyId,
+                       UUID tenantId,
+                       UUID respondentId,
+                       Map<String, Object> answersJson,
+                       String idempotencyKey) {
 
-        // Tenant from security context
-        UUID tenant = UUID.fromString(TenantContext.required());
-
-        // Idempotency: if key exists for this tenant, return the saved responseId
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            IdempotencyKey.PK pk = new IdempotencyKey.PK(tenant, idempotencyKey);
-            Optional<IdempotencyKey> hit = idemRepo.findById(pk);
-            if (hit.isPresent()) {
-                return hit.get().getResponseId();
+        // 1) Check existing idempotency record by (tenantId, idemKey)
+        Optional<IdempotencyKey> existing = idemRepo.findByTenantIdAndIdemKey(tenantId, idempotencyKey);
+        if (existing.isPresent()) {
+            UUID already = existing.get().getResponseId();
+            if (already != null) {
+                // Return the same response id — idempotent success
+                return already;
             }
+            // Exists but responseId is null (prior failure/in-flight) — proceed to write response and update this row.
         }
 
-        // Load the survey schema (questions)
-        List<Question> qs = qRepo.findBySurveyIdOrderByPositionAsc(surveyId);
-        Map<UUID, Question> qById = new HashMap<>();
-        for (Question q : qs) qById.put(q.getId(), q);
-
-        // For choice questions, load valid options (used for validation)
-        Map<UUID, List<OptionChoice>> options = new HashMap<>();
-        for (Question q : qs) {
-            if (q.getType() == QuestionType.SINGLE_CHOICE || q.getType() == QuestionType.MULTI_CHOICE) {
-                options.put(q.getId(), oRepo.findByQuestionIdOrderByPositionAsc(q.getId()));
-            }
-        }
-
-        // Basic validation: ensure required questions are answered
-        Set<UUID> answered = new HashSet<>();
-        for (Answer a : answers) {
-            Question q = qById.get(a.getQuestionId());
-            if (q == null) throw new IllegalArgumentException("Unknown question: " + a.getQuestionId());
-            answered.add(q.getId());
-        }
-
-        for (Question q : qs) {
-            if (q.isRequired() && !answered.contains(q.getId())) {
-                throw new IllegalArgumentException("Missing required answer for question: " + q.getId());
-            }
-        }
-
-        // Save response
+        // 2) Create and persist the Response (no findById usage)
         Response r = new Response();
-        r.setTenantId(tenant);
-        r.setSurveyId(surveyId);
+        r.setId(UUID.randomUUID());
+        r.setTenantId(tenantId);
         r.setRespondentId(respondentId);
-        rRepo.save(r);
+        r.setSurveyId(surveyId);
+        r.setSubmittedAt(Instant.now());
+        r.setAnswersJson(answersJson);
 
-        // Save each answer
-        for (Answer a : answers) {
-            a.setTenantId(tenant);
-            a.setResponseId(r.getId());
-            // (optional) validate against options.get(qId) if choice question
-            aRepo.save(a);
-        }
+        r = responseRepo.save(r);
 
-        // Save idempotency mapping -> (tenantId, key) => responseId
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            IdempotencyKey idem = new IdempotencyKey();
-            idem.setId(new IdempotencyKey.PK(tenant, idempotencyKey));
-            idem.setResponseId(r.getId());
-            idem.setCreatedAtEpoch(System.currentTimeMillis());
-            idemRepo.save(idem);
+        // 3) Upsert idempotency record (no tuple IN, no reserved "key" column)
+        IdempotencyKey ik = existing.orElseGet(IdempotencyKey::new);
+        if (ik.getId() == null) {
+            ik.setId(UUID.randomUUID());
+            ik.setCreatedAtEpoch(System.currentTimeMillis());
         }
+        ik.setTenantId(tenantId);
+        ik.setIdemKey(idempotencyKey);
+        ik.setResponseId(r.getId());
+        idemRepo.save(ik);
 
         return r.getId();
     }
+
+    /**
+     * Retrieves a response by its ID.
+     *
+     * @param id The ID of the response to retrieve.
+     * @return An Optional containing the response if found, or empty if not found.
+     */
+    public Optional<Response> get(UUID id) { return responseRepo.findById(id); }
 }

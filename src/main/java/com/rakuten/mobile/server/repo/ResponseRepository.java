@@ -5,6 +5,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -14,4 +16,6 @@ import java.util.UUID;
 public interface ResponseRepository extends JpaRepository<Response, UUID> {
     // Finds all responses for a specific survey, with pagination support
     Page<Response> findBySurveyId(UUID surveyId, Pageable pageable);
+    Optional<Response> findById(UUID id);
+    List<Response> findAllBySurveyId(UUID surveyId);
 }
