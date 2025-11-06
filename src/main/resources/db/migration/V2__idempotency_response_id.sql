@@ -1,7 +1,7 @@
 -- Ensure schema-qualified name to avoid search_path surprises
 CREATE TABLE IF NOT EXISTS public.idempotency_keys (
                                                        tenant_id        uuid   NOT NULL,
-                                                       key              text   NOT NULL,
+                                                       idem_key         text   NOT NULL,
                                                        response_id      uuid,
                                                        created_at_epoch bigint NOT NULL DEFAULT 0
 );

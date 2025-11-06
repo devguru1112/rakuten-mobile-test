@@ -79,20 +79,10 @@ CREATE TABLE responses (
                            tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
                            survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
                            respondent_id UUID,
+                           answers_json JSONB,
                            submitted_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_responses_tenant_survey ON responses(tenant_id, survey_id);
 
--- ------------------------
--- Answers (one per question per response)
--- ------------------------
-CREATE TABLE answers (
-                         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                         tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-                         response_id UUID NOT NULL REFERENCES responses(id) ON DELETE CASCADE,
-                         question_id UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-                         value_json JSONB NOT NULL,
-                         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 CREATE INDEX idx_answers_tenant_response ON answers(tenant_id, response_id);
 CREATE INDEX idx_answers_question ON answers(question_id);
