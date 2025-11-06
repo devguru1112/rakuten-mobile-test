@@ -2,9 +2,10 @@ package com.rakuten.mobile.server.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;
-import java.util.UUID;
 import org.hibernate.annotations.FilterDef;
 import org.hibernate.annotations.ParamDef;
+
+import java.util.UUID;
 
 @MappedSuperclass
 @FilterDef(

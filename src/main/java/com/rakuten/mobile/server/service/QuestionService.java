@@ -9,7 +9,6 @@ import com.rakuten.mobile.server.tenancy.TenantContext;
 import com.rakuten.mobile.server.web.dto.question.CreateQuestionReq;
 import com.rakuten.mobile.server.web.dto.question.ReplaceQuestionsReq;
 import com.rakuten.mobile.server.web.dto.question.UpdateQuestionReq;
-import com.rakuten.mobile.server.tenancy.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
