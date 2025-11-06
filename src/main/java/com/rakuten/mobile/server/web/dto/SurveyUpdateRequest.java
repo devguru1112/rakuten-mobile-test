@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SurveyUpdateRequest(

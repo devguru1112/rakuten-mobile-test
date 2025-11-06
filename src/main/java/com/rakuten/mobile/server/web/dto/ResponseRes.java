@@ -1,7 +1,6 @@
 package com.rakuten.mobile.server.web.dto;
 
 import com.rakuten.mobile.server.domain.Response;
-import com.rakuten.mobile.server.domain.Survey;
 
 import java.time.Instant;
 import java.util.Map;

@@ -1,17 +1,18 @@
 package com.rakuten.mobile.server.service;
 
-import com.rakuten.mobile.server.domain.*;
-import com.rakuten.mobile.server.repo.*;
-import com.rakuten.mobile.server.tenancy.TenantContext;
+import com.rakuten.mobile.server.domain.IdempotencyKey;
+import com.rakuten.mobile.server.domain.Response;
+import com.rakuten.mobile.server.repo.IdempotencyKeyRepository;
+import com.rakuten.mobile.server.repo.ResponseRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.rakuten.mobile.server.domain.IdempotencyKey;
-import com.rakuten.mobile.server.repo.IdempotencyKeyRepository;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service class to handle the submission and listing of responses to surveys.
