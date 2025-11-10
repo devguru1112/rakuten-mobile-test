@@ -46,7 +46,7 @@ public class SurveyService {
         if (req.description() != null) s.setDescription(req.description());
         if (req.status() != null) s.setStatus(req.status()); else s.setStatus("DRAFT");
         s.setCreatedAt(Instant.now());
-        s.setUpdatededAt(Instant.now());
+        s.setUpdatedAt(Instant.now());
         return repo.save(s);
     }
 

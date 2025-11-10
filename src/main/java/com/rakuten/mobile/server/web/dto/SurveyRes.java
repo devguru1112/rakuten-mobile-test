@@ -18,6 +18,6 @@ public record SurveyRes(UUID id, String title, String description, String status
      * @return A SurveyRes DTO with the relevant survey data.
      */
     public static SurveyRes from(Survey s) {
-        return new SurveyRes(s.getId(), s.getTitle(), s.getDescription(), s.getStatus(), s.getStartsAt(), s.getEndsAt(), s.getCreatedAt(), s.getUpdatededAt());
+        return new SurveyRes(s.getId(), s.getTitle(), s.getDescription(), s.getStatus(), s.getStartsAt(), s.getEndsAt(), s.getCreatedAt(), s.getUpdatedAt());
     }
 }

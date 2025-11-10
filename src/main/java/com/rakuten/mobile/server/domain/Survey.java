@@ -40,7 +40,7 @@ public class Survey {
     private Instant createdAt = Instant.now(); // Timestamp when the survey was created
 
     @Column(name = "updated_at")
-    private Instant updatededAt;
+    private Instant updatedAt;
 
     @Column(name = "startsAt")
     private Instant startsAt; // Timestamp when the survey was created
